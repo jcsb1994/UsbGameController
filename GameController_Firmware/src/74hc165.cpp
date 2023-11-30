@@ -26,7 +26,7 @@ void shift165::capture()
     }
 }
 
-int shift165::read(unsigned int bit)
+int shift165::read(uint8_t bit)
 {
     if (bit >= (_n_devices*8)) {
         return -1;

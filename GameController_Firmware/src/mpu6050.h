@@ -9,7 +9,7 @@ class mpu6050
 {
 public:
     mpu6050(const uint8_t i2c_addr = 0x68) : _i2c_addr(i2c_addr) {}
-    ~mpu6050();
+    ~mpu6050() {}
 
     typedef enum {
         MPU_SENSI_2G,

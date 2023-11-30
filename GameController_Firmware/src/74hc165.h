@@ -9,7 +9,7 @@ public:
     ~shift165() {}
 
     void capture();
-    int read(unsigned int bit);
+    int read(uint8_t bit);
 private:
     const int _data;   /* Q7 (PIN 9) */
     const int _clock;  /* CP (PIN ) */

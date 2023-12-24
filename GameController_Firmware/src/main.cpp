@@ -31,8 +31,13 @@ typedef enum {
   PIN_LED_B = 6,
   PIN_JOY_X = A3,
   PIN_JOY_Y = A2,
+  
   PIN_BTN_A = 10,
   PIN_BTN_B = 16,
+
+  PIN_SHIFT_DATA = 14,
+  PIN_SHIFT_CLOCK = 9,
+  PIN_SHIFT_LATCH = 8,
 } pin_config_t;
 
 // TODO: pins are wrong
@@ -70,8 +75,8 @@ mpu6050 mpu;
 
 // Shift Register Buttons
 // =======================
-shift165 shiftin = shift165(14, 9, 8, TACT_SHIFT_REG_NB);
-int shiftRead(uint8_t bit) { return shiftin.read(bit); }
+shift165 shiftin = shift165(PIN_SHIFT_DATA, PIN_SHIFT_CLOCK, PIN_SHIFT_LATCH, TACT_SHIFT_REG_NB);
+int shiftRead(int bit) { return shiftin.read(bit); }
 
 tact shiftButtons[] = {
   tact(0, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
@@ -93,11 +98,12 @@ tact shiftButtons[] = {
 };
 const uint8_t nb_shiftButtons = sizeof(shiftButtons)/sizeof(tact);
 
+inline int ioRead(int io) { return digitalRead((uint8_t)io); }
 // GPIO Buttons
 // =======================
 tact ioButtons[] = {
-  tact(PIN_BTN_A, digitalRead, TACT_POLL_FREQ_HZ, TACT_GPIO_ACTIVE_STATE),
-  tact(PIN_BTN_B, digitalRead, TACT_POLL_FREQ_HZ, TACT_GPIO_ACTIVE_STATE),
+  tact(PIN_BTN_A, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_ACTIVE_STATE),
+  tact(PIN_BTN_B, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_ACTIVE_STATE),
 };
 const uint8_t nb_ioButtons = sizeof(ioButtons)/sizeof(tact);
 
@@ -132,10 +138,6 @@ void setup() {
   pinMode(PIN_LED_G, OUTPUT);
   pinMode(PIN_LED_B, OUTPUT);
 
-  // Probablement inutile
-  // pinMode(14, INPUT);
-  // pinMode(8, OUTPUT);
-  // pinMode(9, OUTPUT);
 }
 
 int iButt = 0; // Must be global, used in lambdas

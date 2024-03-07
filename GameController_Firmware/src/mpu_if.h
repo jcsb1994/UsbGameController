@@ -2,14 +2,16 @@
 #define MPU6050_H
 
 #include <stdint.h>
-// #include <Arduino.h>
+// Arduino
 #include <Wire.h>
+// Submodules
+#include <Adafruit_MPU6050.h>
 
-class mpu6050
+class mpu_if
 {
 public:
-    mpu6050(const uint8_t i2c_addr = 0x68) : _i2c_addr(i2c_addr) {}
-    ~mpu6050() {}
+    mpu_if(const uint8_t i2c_addr = 0x68) : _i2c_addr(i2c_addr) {}
+    ~mpu_if() {}
 
     typedef enum {
         MPU_SENSI_2G,

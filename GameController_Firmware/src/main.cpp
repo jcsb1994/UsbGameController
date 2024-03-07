@@ -3,23 +3,27 @@
     \copyright jcsb@pixmob.com
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     \brief USB game controller firmware
-
+    
 */
 
 #include <Arduino.h>
 // project modules
 #include "74hc165.h"
-#include "mpu6050.h"
 // submodules
-#include <Joystick.h>
+// #include <Adafruit_MPU6050.h>
+// #include <Joystick.h>
 #include "tact.h"
 
+#define DEBUG_MAIN
+// WARNING: Do not put looped msgs will prevent flashing
+// (Short top right pins 2 and 3 to reset in bootloader)
+
 #ifndef DEBUG_MAIN
-#define debugf_init() Serial.begin(9600);
-#define debugf(msg) Serial.println(msg)
-#else
 #define debugf_init()
 #define debugf(msg)
+#else
+#define debugf_init() Serial.begin(9600);
+#define debugf(msg) Serial.println(msg)
 #endif
 
 
@@ -64,14 +68,15 @@ Joystick_ Joystick; // main USB device
 
 // Accelerometer
 // =======================
-mpu6050 mpu;
+// mpu6050 mpu;
+// Adafruit_MPU6050 mpu;
 
 // Buttons
 // =======================
 #define TACT_POLL_FREQ_HZ (100)
-#define TACT_SHIFT_REG_ACTIVE_STATE 0
+#define TACT_SR_LOGIC 0 // Shift register button logic
 #define TACT_SHIFT_REG_NB 2
-#define TACT_GPIO_ACTIVE_STATE 0
+#define TACT_GPIO_LOGIC 0 // Buttons on GPIOs logic
 
 // Shift Register Buttons
 // =======================
@@ -79,22 +84,22 @@ shift165 shiftin = shift165(PIN_SHIFT_DATA, PIN_SHIFT_CLOCK, PIN_SHIFT_LATCH, TA
 int shiftRead(int bit) { return shiftin.read(bit); }
 
 tact shiftButtons[] = {
-  tact(0, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(1, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(2, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(3, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(4, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(5, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(6, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(7, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(8, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(9, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(10, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(11, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(12, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(13, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(14, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
-  tact(15, shiftRead, TACT_POLL_FREQ_HZ, TACT_SHIFT_REG_ACTIVE_STATE),
+  tact(0, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(1, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(2, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(3, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(4, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(5, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(6, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(7, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(8, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(9, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(10, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(11, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(12, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(13, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(14, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(15, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
 };
 const uint8_t nb_shiftButtons = sizeof(shiftButtons)/sizeof(tact);
 
@@ -102,8 +107,8 @@ inline int ioRead(int io) { return digitalRead((uint8_t)io); }
 // GPIO Buttons
 // =======================
 tact ioButtons[] = {
-  tact(PIN_BTN_A, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_ACTIVE_STATE),
-  tact(PIN_BTN_B, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_ACTIVE_STATE),
+  tact(PIN_BTN_A, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC),
+  tact(PIN_BTN_B, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC),
 };
 const uint8_t nb_ioButtons = sizeof(ioButtons)/sizeof(tact);
 
@@ -115,28 +120,31 @@ void setup() {
 
   // Accelerometer
   // mpu.init();
+  // wire.begin()
+  // mpu.begin();
 
   // Buttons
   for (uint8_t i = 0; i < nb_ioButtons; i++) {
     ioButtons[i].setDebouncePeriod(30);
+    pinMode(ioButtons[i].getPin(), INPUT);
   }
   for (uint8_t i = 0; i < nb_shiftButtons; i++) {
     shiftButtons[i].setDebouncePeriod(30);
   }
 
-  // Analog Joystick
-  pinMode(PIN_JOY_X, INPUT);
-  pinMode(PIN_JOY_Y, INPUT);
+  // // Analog Joystick
+  // pinMode(PIN_JOY_X, INPUT);
+  // pinMode(PIN_JOY_Y, INPUT);
 
-  // HID Joystick
-  #ifndef DEBUG_MAIN
-  Joystick.begin(false);
-  #endif
+  // // HID Joystick
+  // #ifndef DEBUG_MAIN
+  // Joystick.begin(false);
+  // #endif
   
   // Leds
-  pinMode(PIN_LED_R, OUTPUT);
-  pinMode(PIN_LED_G, OUTPUT);
-  pinMode(PIN_LED_B, OUTPUT);
+  // pinMode(PIN_LED_R, OUTPUT);
+  // pinMode(PIN_LED_G, OUTPUT);
+  // pinMode(PIN_LED_B, OUTPUT);
 
 }
 
@@ -148,16 +156,17 @@ void loop() {
   static unsigned int millisec_between_polls = 1000 / TACT_POLL_FREQ_HZ;
 
   if (millis() - last_poll >= millisec_between_polls) {
-    // if (intes >= 48) {
-    //   idx++;
-    //   if (idx > 6) idx = 4;
-    // }
-    // analogWrite(idx, intes);
-    // intes++;
-    #ifndef DEBUG_MAIN
-    Joystick.setXAxis(analogRead(PIN_JOY_X));
-    Joystick.setYAxis(analogRead(PIN_JOY_Y));
-    #endif
+  //   if (intes >= 48) {
+  //     idx++;
+  //     if (idx > 6) idx = 4;
+  //   }
+  //   analogWrite(idx, intes);
+  //   intes++;
+  
+  //   #ifndef DEBUG_MAIN
+  //   Joystick.setXAxis(analogRead(PIN_JOY_X));
+  //   Joystick.setYAxis(analogRead(PIN_JOY_Y));
+  //   #endif
 
     for (iButt = 0; iButt < nb_ioButtons; iButt++) {
       #ifndef DEBUG_MAIN
@@ -165,12 +174,12 @@ void loop() {
                       [] { Joystick.setButton(iButt, 0); },
                       [] {  });
       #else
-      ioButtons[iButt].poll([] {  Serial.println("ye");  },
-                      [] { Serial.println("ya"); },
+      ioButtons[iButt].poll([] {  debugf(iButt);  },
+                      [] { debugf(iButt); },
                       [] {  });
       #endif
     }
-
+  
     shiftin.capture();
     for (iButt = 0; iButt < nb_shiftButtons; iButt++) {
       #ifndef DEBUG_MAIN
@@ -179,14 +188,17 @@ void loop() {
                       [] { Joystick.setButton(iButt, 0); },
                       [] {  });
       #else
-      shiftButtons[iButt].poll([] {  Serial.println("ye");  },
-                      [] { Serial.println("ya"); },
+      shiftButtons[iButt].poll([] {  debugf(iButt);  },
+                      [] { debugf(iButt); },
                       [] {  });
       #endif
     }
 
     last_poll += millisec_between_polls;
+
+    #ifndef DEBUG_MAIN
     Joystick.sendState(); // Update USB state
+    #endif
   }
 
   // poll buttons, joystick

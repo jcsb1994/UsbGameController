@@ -30,9 +30,9 @@
 // Pins
 // =======================
 typedef enum {
-  PIN_LED_R = 4,
-  PIN_LED_G = 5,
-  PIN_LED_B = 6,
+  PIN_LED_R = 5,
+  PIN_LED_G = 6,
+  PIN_LED_B = 4,
   PIN_JOY_X = A3,
   PIN_JOY_Y = A2,
   
@@ -86,7 +86,6 @@ int shiftRead(int bit) { return shiftin.read(bit); }
 tact shiftButtons[] = {
   tact(0, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
   tact(1, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(2, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
   tact(3, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
   tact(4, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
   tact(5, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
@@ -100,6 +99,7 @@ tact shiftButtons[] = {
   tact(13, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
   tact(14, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
   tact(15, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(2, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
 };
 const uint8_t nb_shiftButtons = sizeof(shiftButtons)/sizeof(tact);
 
@@ -132,41 +132,60 @@ void setup() {
     shiftButtons[i].setDebouncePeriod(30);
   }
 
-  // // Analog Joystick
-  // pinMode(PIN_JOY_X, INPUT);
-  // pinMode(PIN_JOY_Y, INPUT);
+  // Analog Joystick
+  pinMode(PIN_JOY_X, INPUT);
+  pinMode(PIN_JOY_Y, INPUT);
 
-  // // HID Joystick
-  // #ifndef DEBUG_MAIN
-  // Joystick.begin(false);
-  // #endif
+  // HID Joystick
+  #ifndef DEBUG_MAIN
+  Joystick.begin(false);
+  #endif
   
   // Leds
-  // pinMode(PIN_LED_R, OUTPUT);
-  // pinMode(PIN_LED_G, OUTPUT);
-  // pinMode(PIN_LED_B, OUTPUT);
+  pinMode(PIN_LED_R, OUTPUT);
+  pinMode(PIN_LED_G, OUTPUT);
+  pinMode(PIN_LED_B, OUTPUT);
 
+  shiftin.init();
 }
 
 int iButt = 0; // Must be global, used in lambdas
-uint8_t intes = 0;
-uint8_t idx = 4;
+
+// Color pulse
+uint8_t color_idx = 0;
+int8_t intensity = 0;
+int8_t dir = 1;
+uint8_t max_col_idx = 3;
+uint8_t rgb[4][3] = {
+  {0, 0, 0},
+  {255, 0, 0},
+  {0, 255, 0},
+  {0, 255, 255}
+};
+void color_step()
+{
+  intensity+=dir;
+  if (intensity >= 100 || !intensity) { dir = -dir; }
+  float r = (rgb[color_idx][0] * intensity) / 100;
+  float g = (rgb[color_idx][1] * intensity) / 100;
+  float b = (rgb[color_idx][2] * intensity) / 100;
+  analogWrite(PIN_LED_R, r);
+  analogWrite(PIN_LED_G, g);
+  analogWrite(PIN_LED_B, b);
+}
+
 void loop() {
   static unsigned long last_poll = 0;
   static unsigned int millisec_between_polls = 1000 / TACT_POLL_FREQ_HZ;
 
   if (millis() - last_poll >= millisec_between_polls) {
-  //   if (intes >= 48) {
-  //     idx++;
-  //     if (idx > 6) idx = 4;
-  //   }
-  //   analogWrite(idx, intes);
-  //   intes++;
+
+    color_step();
   
-  //   #ifndef DEBUG_MAIN
-  //   Joystick.setXAxis(analogRead(PIN_JOY_X));
-  //   Joystick.setYAxis(analogRead(PIN_JOY_Y));
-  //   #endif
+    #ifndef DEBUG_MAIN
+    Joystick.setXAxis(analogRead(PIN_JOY_X));
+    Joystick.setYAxis(analogRead(PIN_JOY_Y));
+    #endif
 
     for (iButt = 0; iButt < nb_ioButtons; iButt++) {
       #ifndef DEBUG_MAIN
@@ -180,8 +199,9 @@ void loop() {
       #endif
     }
   
+    // Loop through buttons connected to the shift registers
     shiftin.capture();
-    for (iButt = 0; iButt < nb_shiftButtons; iButt++) {
+    for (iButt = 0; iButt < nb_shiftButtons-1; iButt++) {
       #ifndef DEBUG_MAIN
       // TODO: DO NOT SET STATE FOR PLAYER BUTTON
       shiftButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
@@ -193,6 +213,11 @@ void loop() {
                       [] {  });
       #endif
     }
+    // Last button in the index is a special button, not a HID button
+    shiftButtons[nb_shiftButtons-1].poll([] { color_idx++; if(color_idx > max_col_idx) {color_idx = 0;}  },
+                    [] {  },
+                    [] {  });
+
 
     last_poll += millisec_between_polls;
 

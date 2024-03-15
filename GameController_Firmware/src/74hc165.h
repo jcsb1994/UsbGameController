@@ -7,7 +7,7 @@ class shift165
 public:
     shift165(const int dataPin, const int clockPin, const int latchPin, const unsigned int n_devices = 1);
     ~shift165() {}
-
+    void init();
     void capture();
     int read(uint8_t bit);
 private:

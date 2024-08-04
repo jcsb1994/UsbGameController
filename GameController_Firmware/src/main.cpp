@@ -11,10 +11,12 @@
 #include "74hc165.h"
 // submodules
 // #include <Adafruit_MPU6050.h>
-// #include <Joystick.h>
 #include "tact.h"
 
-#define DEBUG_MAIN
+#include <Joystick.h>
+#include <Keyboard.h>
+
+// #define DEBUG_MAIN
 // WARNING: Do not put looped msgs will prevent flashing
 // (Short top right pins 2 and 3 to reset in bootloader)
 
@@ -60,11 +62,51 @@ typedef enum {
   SHIFT_BTN_MAX
 } shift_config_t;
 
+
+
+const uint8_t keyboard_keys[] = {
+  /* key_A = */ ' ',
+  /* key_B = */ KEY_KP_ENTER,
+  /* key_L = */ 65,
+  /* key_L2 = */ KEY_ESC,
+  /* key_R = */ 'p',
+  'E',
+  'q',
+  KEY_ESC,
+  'f',
+  /* key_C_UP = */ KEY_UP_ARROW,
+  /* key_C_RIGHT = */ KEY_RIGHT_ARROW,
+  /* key_C_LEFT = */ KEY_LEFT_ARROW,
+  /* key_C_DOWN = */ KEY_DOWN_ARROW,
+  /* key_L = */ 'l',
+  /* key_L = */ 'L',
+  /* key_L = */ 'r',
+  /* key_L = */ 'R',
+};
+
+
 // HID Joystick (USB)
 // =======================
-#ifndef DEBUG_MAIN
+bool as_keyboard = false;
 Joystick_ Joystick; // main USB device
+
+void comm_begin()
+{
+digitalWrite(PIN_LED_B, 1);
+#ifndef DEBUG_MAIN
+  if (!as_keyboard) {
+    Keyboard.end();
+    delay(100);
+    Joystick.begin(false);
+  } else {
+    Joystick.end();
+    delay(100);
+    Keyboard.begin();
+  }
+digitalWrite(PIN_LED_B, 0);
 #endif
+}
+
 
 // Accelerometer
 // =======================
@@ -82,6 +124,7 @@ Joystick_ Joystick; // main USB device
 // =======================
 shift165 shiftin = shift165(PIN_SHIFT_DATA, PIN_SHIFT_CLOCK, PIN_SHIFT_LATCH, TACT_SHIFT_REG_NB);
 int shiftRead(int bit) { return shiftin.read(bit); }
+
 
 tact shiftButtons[] = {
   tact(0, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
@@ -150,7 +193,6 @@ void setup() {
 }
 
 int iButt = 0; // Must be global, used in lambdas
-
 // Color pulse
 uint8_t color_idx = 0;
 int8_t intensity = 0;
@@ -160,7 +202,7 @@ uint8_t rgb[4][3] = {
   {0, 0, 0},
   {255, 0, 0},
   {0, 255, 0},
-  {0, 255, 255}
+  {255, 255, 0}
 };
 void color_step()
 {
@@ -174,24 +216,59 @@ void color_step()
   analogWrite(PIN_LED_B, b);
 }
 
+
+int8_t continuous_press = -1;
+
+
 void loop() {
   static unsigned long last_poll = 0;
   static unsigned int millisec_between_polls = 1000 / TACT_POLL_FREQ_HZ;
 
   if (millis() - last_poll >= millisec_between_polls) {
-
+ 
     color_step();
   
     #ifndef DEBUG_MAIN
+    if (as_keyboard) {
+      int x_read = analogRead(PIN_JOY_X);
+      int y_read = analogRead(PIN_JOY_Y);
+      if(y_read > 700) {
+        Keyboard.write('A');
+      } else if(y_read < 400) {
+        Keyboard.write('D');
+      } 
+
+      if(x_read > 700) {
+        Keyboard.write('W');
+      } else if(x_read < 400) {
+        Keyboard.write('S');
+      } 
+    } 
     Joystick.setXAxis(analogRead(PIN_JOY_X));
     Joystick.setYAxis(analogRead(PIN_JOY_Y));
+    #else
+    debugf(analogRead(PIN_JOY_X));
+    debugf(analogRead(PIN_JOY_Y));
     #endif
+
+    if (as_keyboard) {
+      if (continuous_press >= 0) {
+        Keyboard.write(continuous_press);
+      }
+    }
 
     for (iButt = 0; iButt < nb_ioButtons; iButt++) {
       #ifndef DEBUG_MAIN
-      ioButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
+      if (as_keyboard) {
+        shiftButtons[iButt].poll([] { Keyboard.write(keyboard_keys[iButt]);  },
+                      [] { },
+                      [] { continuous_press = keyboard_keys[iButt]; },
+                      [] { continuous_press = -1; });
+      } else {
+        ioButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
                       [] { Joystick.setButton(iButt, 0); },
                       [] {  });
+      }
       #else
       ioButtons[iButt].poll([] {  debugf(iButt);  },
                       [] { debugf(iButt); },
@@ -204,9 +281,17 @@ void loop() {
     for (iButt = 0; iButt < nb_shiftButtons-1; iButt++) {
       #ifndef DEBUG_MAIN
       // TODO: DO NOT SET STATE FOR PLAYER BUTTON
-      shiftButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
-                      [] { Joystick.setButton(iButt, 0); },
-                      [] {  });
+      if (as_keyboard) {
+        shiftButtons[iButt].poll([] { Keyboard.write(keyboard_keys[iButt]);  },
+                      [] { },
+                      [] { continuous_press = keyboard_keys[iButt]; },
+                      [] { continuous_press = -1; });
+      } else {
+        shiftButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
+                        [] { Joystick.setButton(iButt, 0); },
+                        [] {  });
+      }
+      
       #else
       shiftButtons[iButt].poll([] {  debugf(iButt);  },
                       [] { debugf(iButt); },
@@ -214,9 +299,12 @@ void loop() {
       #endif
     }
     // Last button in the index is a special button, not a HID button
-    shiftButtons[nb_shiftButtons-1].poll([] { color_idx++; if(color_idx > max_col_idx) {color_idx = 0;}  },
-                    [] {  },
-                    [] {  });
+    shiftButtons[nb_shiftButtons-1].poll([] {  },
+                    [] { color_idx++; if(color_idx > max_col_idx) {color_idx = 0;} },
+                    [] { as_keyboard = !as_keyboard;
+                          continuous_press = -1;
+                          comm_begin(); 
+                          debugf("Begin as " + String(as_keyboard)); });
 
 
     last_poll += millisec_between_polls;

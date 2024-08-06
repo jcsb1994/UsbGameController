@@ -28,10 +28,57 @@
 #define debugf(msg) Serial.println(msg)
 #endif
 
-
+// Accelerometer
 // =======================
-// 1 enum pour idx de buttons (pas besoin chiffres)
-// 1 list de pairs
+// mpu6050 mpu;
+// Adafruit_MPU6050 mpu;
+
+
+// Buttons
+// =======================
+#define TACT_POLL_FREQ_HZ (100)
+#define TACT_SR_LOGIC 0 // Shift register button logic
+#define TACT_SHIFT_REG_NB 2
+#define TACT_GPIO_LOGIC 0 // Buttons on GPIOs logic
+
+#define IO_TACT_INIT(pin) tact(PIN_BTN_##pin, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC)
+#define SHIFT_TACT_INIT(pin) tact(SHIFT_BTN_##pin, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC)
+
+shift165 shiftin = shift165(PIN_SHIFT_DATA, PIN_SHIFT_CLOCK, PIN_SHIFT_LATCH, TACT_SHIFT_REG_NB);
+
+int shiftRead(int bit) { return shiftin.read(bit); }
+inline int ioRead(int io) { return digitalRead((uint8_t)io); }
+
+tact buttons[] = {
+  // Buttons connected to MCU IOs
+  IO_TACT_INIT(A),
+  IO_TACT_INIT(B),
+  // Buttons connected to shift register pins
+  SHIFT_TACT_INIT(L),
+  SHIFT_TACT_INIT(L2),
+  SHIFT_TACT_INIT(R),
+  SHIFT_TACT_INIT(R2),
+  SHIFT_TACT_INIT(START),
+  SHIFT_TACT_INIT(SELECT),
+  SHIFT_TACT_INIT(C_UP),
+  SHIFT_TACT_INIT(C_DOWN),
+  SHIFT_TACT_INIT(C_LEFT),
+  SHIFT_TACT_INIT(C_RIGHT),
+  SHIFT_TACT_INIT(ARR_UP),
+  SHIFT_TACT_INIT(ARR_DOWN),
+  SHIFT_TACT_INIT(ARR_LEFT),
+  SHIFT_TACT_INIT(ARR_RIGHT),
+  // Put config buttons last
+  SHIFT_TACT_INIT(PLAYER),
+};
+
+const uint8_t nb_buttons = sizeof(buttons)/sizeof(tact);
+const uint8_t nb_ioButtons = 2;
+const uint8_t nb_configButtons = 1;
+
+
+// Joystick / keyboard
+// =======================
 
 /*! \brief This table maps to the Joystick button indexes on the HID device on the PC
   It also maps to the order of the local array buttons[] */
@@ -81,55 +128,12 @@ keyjoy_button_t button_keys[] = {
 
 };
 
+keyJoystick Keyjoy = keyJoystick(button_keys, PIN_JOY_X, PIN_JOY_Y);
 
-keyJoystick Keyjoy = keyJoystick(button_keys);
-
-
-// Accelerometer
-// =======================
-// mpu6050 mpu;
-// Adafruit_MPU6050 mpu;
-
-// Buttons
-// =======================
-#define TACT_POLL_FREQ_HZ (100)
-#define TACT_SR_LOGIC 0 // Shift register button logic
-#define TACT_SHIFT_REG_NB 2
-#define TACT_GPIO_LOGIC 0 // Buttons on GPIOs logic
-
-shift165 shiftin = shift165(PIN_SHIFT_DATA, PIN_SHIFT_CLOCK, PIN_SHIFT_LATCH, TACT_SHIFT_REG_NB);
-
-int shiftRead(int bit) { return shiftin.read(bit); }
-inline int ioRead(int io) { return digitalRead((uint8_t)io); }
-
-tact buttons[] = {
-  // Buttons connected to MCU IOs
-  tact(PIN_BTN_A, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC),
-  tact(PIN_BTN_B, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC),
-  // Buttons connected to shift register pins
-  tact(SHIFT_BTN_L/* 0 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_L2/* 1 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_R/* 3 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_R2/* 4 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_START/* 6 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_SELECT/* 7 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_C_UP/* 8 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_C_DOWN/* 9 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_C_LEFT/* 10 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_C_RIGHT/* 11 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_ARR_UP/* 12 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_ARR_DOWN/* 13 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_ARR_LEFT/* 14 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(SHIFT_BTN_ARR_RIGHT/* 15 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  // Put config buttons last
-  tact(SHIFT_BTN_PLAYER/* 2 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-};
-const uint8_t nb_buttons = sizeof(buttons)/sizeof(tact);
-const uint8_t nb_ioButtons = 2;
-const uint8_t nb_configButtons = 1;
 
 // Main
 // =======================
+
 void setup() {
   debugf_init();
   debugf("USB Gaming!");
@@ -199,7 +203,7 @@ void loop() {
  
     color_step();
   
-    Keyjoy.read_stick(PIN_JOY_X, PIN_JOY_Y);
+    Keyjoy.read_stick();
 
     shiftin.capture();
     for (iButt = 0; iButt < (nb_buttons-nb_configButtons); iButt++) {

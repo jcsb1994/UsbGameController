@@ -1,7 +1,7 @@
 #include "keyJoystick.h"
 
 
-int keyJoystick::begin()
+void keyJoystick::begin()
 {
     switch (_state) {
         
@@ -42,35 +42,51 @@ void keyJoystick::release(uint8_t button)
     }
 }
 
-void keyJoystick::read_stick(uint8_t x_pin, uint8_t y_pin)
+void keyJoystick::read_stick()
 {
-    int x_read = analogRead(x_pin);
-    int y_read = analogRead(y_pin);
+    int x_read = analogRead(_x_pin);
+    int y_read = analogRead(_y_pin);
 
     if (_state == KEYJOY_STATE_KEYBOARD) {
 
         if(y_read > 700) {
-            Keyboard.press('A');
-        } else {
+            if (_y_state != STICK_POS) {
+                Keyboard.press('A');
+                _y_state = STICK_POS;
+            }
+        } else if (_y_state == STICK_POS) {
             Keyboard.release('A');
+            _y_state = STICK_ZERO;
         }
         
         if(y_read < 400) {
-            Keyboard.press('D');
-        } else {
+            if (_y_state != STICK_NEG) {
+                Keyboard.press('D');
+                _y_state = STICK_NEG;
+            }
+        } else if (_y_state == STICK_NEG) {
             Keyboard.release('D');
+            _y_state = STICK_ZERO;
         }
 
         if(x_read > 700) {
-            Keyboard.press('W');
-        } else {
+            if (_y_state != STICK_POS) {
+                Keyboard.press('W');
+                _x_state = STICK_POS;
+            }
+        } else  if (_x_state == STICK_POS) {
             Keyboard.release('W');
+            _x_state = STICK_ZERO;
         }
         
         if(x_read < 400) {
-            Keyboard.press('S');
-        } else {
+            if (_y_state != STICK_NEG) {
+                Keyboard.press('S');
+                _x_state = STICK_NEG;
+            }
+        } else  if (_x_state == STICK_NEG) {
             Keyboard.release('S');
+            _x_state = STICK_ZERO;
         } 
 
     } else {

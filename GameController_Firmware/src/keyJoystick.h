@@ -2,18 +2,38 @@
 #define KEY_JOYSTICK_H
 
 #include <Arduino.h>
+#include <Joystick.h>
+#include <Keyboard.h>
+
+typedef enum {
+    KEYJOY_STATE_UNINIT,
+    KEYJOY_STATE_JOYSTICK,
+    KEYJOY_STATE_KEYBOARD,
+} keyjoy_state_t;
+
+typedef struct {
+    uint8_t id;
+    unsigned char ascii;
+} keyjoy_button_t;
 
 class keyJoystick
 {
 private:
-    /* data */
-    uint8_t _xPin;
-    uint8_t _yPin;
+    keyjoy_state_t _state;
+    keyjoy_button_t *_buttons;
+    Joystick_ Joystick;
+
 public:
-    keyJoystick(const uint8_t xPin, const uint8_t yPin ) : _xPin(xPin), _yPin(yPin) {}
+    keyJoystick(keyjoy_button_t *buttons) : _buttons(buttons) {}
     ~keyJoystick() {}
 
-    int read();
+    int begin();
+    void press(uint8_t button);
+    void release(uint8_t button);
+
+    void read_stick(uint8_t x_pin, uint8_t y_pin);
+
+    void update();
 };
 
 #endif

@@ -8,15 +8,15 @@
 
 #include <Arduino.h>
 // project modules
+#include "bsp.h"
 #include "74hc165.h"
+#include "keyJoystick.h"
 // submodules
 // #include <Adafruit_MPU6050.h>
 #include "tact.h"
 
-#include <Joystick.h>
-#include <Keyboard.h>
 
-// #define DEBUG_MAIN
+// #define DEBUG_MAINlR                                                                                                                                                                                                               lRrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
 // WARNING: Do not put looped msgs will prevent flashing
 // (Short top right pins 2 and 3 to reset in bootloader)
 
@@ -29,83 +29,60 @@
 #endif
 
 
-// Pins
 // =======================
+// 1 enum pour idx de buttons (pas besoin chiffres)
+// 1 list de pairs
+
+/*! \brief This table maps to the Joystick button indexes on the HID device on the PC
+  It also maps to the order of the local array buttons[] */
 typedef enum {
-  PIN_LED_R = 5,
-  PIN_LED_G = 6,
-  PIN_LED_B = 4,
-  PIN_JOY_X = A3,
-  PIN_JOY_Y = A2,
-  
-  PIN_BTN_A = 10,
-  PIN_BTN_B = 16,
+BTN_IDX_A,
+BTN_IDX_B,  
 
-  PIN_SHIFT_DATA = 14,
-  PIN_SHIFT_CLOCK = 9,
-  PIN_SHIFT_LATCH = 8,
-} pin_config_t;
+BTN_IDX_L,
+BTN_IDX_L2,
+BTN_IDX_R,
+BTN_IDX_R2,
 
-// TODO: pins are wrong
-typedef enum {
-  SHIFT_BTN_L = 4,
-  SHIFT_BTN_L2 = 5,  // Z on 64
-  SHIFT_BTN_R = 6,
-  SHIFT_BTN_R2 = 7,
-  SHIFT_BTN_PLAYER = 14, // Local button, not part of USB joystick
-  SHIFT_BTN_START = 8,
-  SHIFT_BTN_SELECT = 9,
-  SHIFT_BTN_C_UP = 10,
-  SHIFT_BTN_C_DOWN = 11,
-  SHIFT_BTN_C_LEFT = 12,
-  SHIFT_BTN_C_RIGHT = 13,
-  SHIFT_BTN_MAX
-} shift_config_t;
+BTN_IDX_START,
+BTN_IDX_SELECT,
 
+BTN_IDX_C_UP,
+BTN_IDX_C_DOWN,
+BTN_IDX_C_LEFT,
+BTN_IDX_C_RIGHT,
 
+BTN_IDX_ARR_UP,
+BTN_IDX_ARR_DOWN,
+BTN_IDX_ARR_LEFT,
+BTN_IDX_ARR_RIGHT,
 
-const uint8_t keyboard_keys[] = {
-  /* key_A = */ ' ',
-  /* key_B = */ KEY_KP_ENTER,
-  /* key_L = */ 65,
-  /* key_L2 = */ KEY_ESC,
-  /* key_R = */ 'p',
-  'E',
-  'q',
-  KEY_ESC,
-  'f',
-  /* key_C_UP = */ KEY_UP_ARROW,
-  /* key_C_RIGHT = */ KEY_RIGHT_ARROW,
-  /* key_C_LEFT = */ KEY_LEFT_ARROW,
-  /* key_C_DOWN = */ KEY_DOWN_ARROW,
-  /* key_L = */ 'l',
-  /* key_L = */ 'L',
-  /* key_L = */ 'r',
-  /* key_L = */ 'R',
+// Local buttons (not transmitted via HID, configs the controller)
+BTN_IDX_PLAYER,
+} button_idx_t;
+
+keyjoy_button_t button_keys[] = {
+  {.id = BTN_IDX_A,           .ascii = ' '},
+  {.id = BTN_IDX_B,           .ascii = KEY_KP_ENTER},
+  {.id = BTN_IDX_L,           .ascii = 'l'},
+  {.id = BTN_IDX_L2,          .ascii = 'L'},
+  {.id = BTN_IDX_R,           .ascii = 'r'},
+  {.id = BTN_IDX_R2,          .ascii = 'R'},
+  {.id = BTN_IDX_START,       .ascii = KEY_ESC},
+  {.id = BTN_IDX_SELECT,      .ascii = 'p'},
+  {.id = BTN_IDX_ARR_UP,      .ascii = KEY_UP_ARROW},
+  {.id = BTN_IDX_ARR_DOWN,    .ascii = KEY_RIGHT_ARROW},
+  {.id = BTN_IDX_ARR_LEFT,    .ascii = KEY_LEFT_ARROW},
+  {.id = BTN_IDX_ARR_RIGHT,   .ascii = KEY_DOWN_ARROW},
+  {.id = BTN_IDX_C_UP,        .ascii = 'r'},
+  {.id = BTN_IDX_C_DOWN,      .ascii = 'E'},
+  {.id = BTN_IDX_C_LEFT,      .ascii = 'm'},
+  {.id = BTN_IDX_C_RIGHT,     .ascii = KEY_TAB},
+
 };
 
 
-// HID Joystick (USB)
-// =======================
-bool as_keyboard = false;
-Joystick_ Joystick; // main USB device
-
-void comm_begin()
-{
-digitalWrite(PIN_LED_B, 1);
-#ifndef DEBUG_MAIN
-  if (!as_keyboard) {
-    Keyboard.end();
-    delay(100);
-    Joystick.begin(false);
-  } else {
-    Joystick.end();
-    delay(100);
-    Keyboard.begin();
-  }
-digitalWrite(PIN_LED_B, 0);
-#endif
-}
+keyJoystick Keyjoy = keyJoystick(button_keys);
 
 
 // Accelerometer
@@ -120,40 +97,36 @@ digitalWrite(PIN_LED_B, 0);
 #define TACT_SHIFT_REG_NB 2
 #define TACT_GPIO_LOGIC 0 // Buttons on GPIOs logic
 
-// Shift Register Buttons
-// =======================
 shift165 shiftin = shift165(PIN_SHIFT_DATA, PIN_SHIFT_CLOCK, PIN_SHIFT_LATCH, TACT_SHIFT_REG_NB);
+
 int shiftRead(int bit) { return shiftin.read(bit); }
-
-
-tact shiftButtons[] = {
-  tact(0, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(1, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(3, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(4, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(5, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(6, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(7, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(8, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(9, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(10, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(11, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(12, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(13, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(14, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(15, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-  tact(2, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
-};
-const uint8_t nb_shiftButtons = sizeof(shiftButtons)/sizeof(tact);
-
 inline int ioRead(int io) { return digitalRead((uint8_t)io); }
-// GPIO Buttons
-// =======================
-tact ioButtons[] = {
+
+tact buttons[] = {
+  // Buttons connected to MCU IOs
   tact(PIN_BTN_A, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC),
   tact(PIN_BTN_B, ioRead, TACT_POLL_FREQ_HZ, TACT_GPIO_LOGIC),
+  // Buttons connected to shift register pins
+  tact(SHIFT_BTN_L/* 0 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_L2/* 1 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_R/* 3 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_R2/* 4 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_START/* 6 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_SELECT/* 7 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_C_UP/* 8 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_C_DOWN/* 9 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_C_LEFT/* 10 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_C_RIGHT/* 11 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_ARR_UP/* 12 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_ARR_DOWN/* 13 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_ARR_LEFT/* 14 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  tact(SHIFT_BTN_ARR_RIGHT/* 15 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
+  // Put config buttons last
+  tact(SHIFT_BTN_PLAYER/* 2 */, shiftRead, TACT_POLL_FREQ_HZ, TACT_SR_LOGIC),
 };
-const uint8_t nb_ioButtons = sizeof(ioButtons)/sizeof(tact);
+const uint8_t nb_buttons = sizeof(buttons)/sizeof(tact);
+const uint8_t nb_ioButtons = 2;
+const uint8_t nb_configButtons = 1;
 
 // Main
 // =======================
@@ -167,12 +140,11 @@ void setup() {
   // mpu.begin();
 
   // Buttons
-  for (uint8_t i = 0; i < nb_ioButtons; i++) {
-    ioButtons[i].setDebouncePeriod(30);
-    pinMode(ioButtons[i].getPin(), INPUT);
+  for (uint8_t i = 0; i < nb_buttons; i++) {
+    buttons[i].setDebouncePeriod(30);
   }
-  for (uint8_t i = 0; i < nb_shiftButtons; i++) {
-    shiftButtons[i].setDebouncePeriod(30);
+  for (uint8_t i = 0; i < nb_ioButtons; i++) {
+    pinMode(buttons[i].getPin(), INPUT);
   }
 
   // Analog Joystick
@@ -181,7 +153,7 @@ void setup() {
 
   // HID Joystick
   #ifndef DEBUG_MAIN
-  Joystick.begin(false);
+  Keyjoy.begin();
   #endif
   
   // Leds
@@ -193,6 +165,7 @@ void setup() {
 }
 
 int iButt = 0; // Must be global, used in lambdas
+
 // Color pulse
 uint8_t color_idx = 0;
 int8_t intensity = 0;
@@ -204,6 +177,7 @@ uint8_t rgb[4][3] = {
   {0, 255, 0},
   {255, 255, 0}
 };
+
 void color_step()
 {
   intensity+=dir;
@@ -217,9 +191,6 @@ void color_step()
 }
 
 
-int8_t continuous_press = -1;
-
-
 void loop() {
   static unsigned long last_poll = 0;
   static unsigned int millisec_between_polls = 1000 / TACT_POLL_FREQ_HZ;
@@ -228,89 +199,40 @@ void loop() {
  
     color_step();
   
-    #ifndef DEBUG_MAIN
-    if (as_keyboard) {
-      int x_read = analogRead(PIN_JOY_X);
-      int y_read = analogRead(PIN_JOY_Y);
-      if(y_read > 700) {
-        Keyboard.write('A');
-      } else if(y_read < 400) {
-        Keyboard.write('D');
-      } 
+    Keyjoy.read_stick(PIN_JOY_X, PIN_JOY_Y);
 
-      if(x_read > 700) {
-        Keyboard.write('W');
-      } else if(x_read < 400) {
-        Keyboard.write('S');
-      } 
-    } 
-    Joystick.setXAxis(analogRead(PIN_JOY_X));
-    Joystick.setYAxis(analogRead(PIN_JOY_Y));
-    #else
-    debugf(analogRead(PIN_JOY_X));
-    debugf(analogRead(PIN_JOY_Y));
-    #endif
-
-    if (as_keyboard) {
-      if (continuous_press >= 0) {
-        Keyboard.write(continuous_press);
-      }
-    }
-
-    for (iButt = 0; iButt < nb_ioButtons; iButt++) {
-      #ifndef DEBUG_MAIN
-      if (as_keyboard) {
-        shiftButtons[iButt].poll([] { Keyboard.write(keyboard_keys[iButt]);  },
-                      [] { },
-                      [] { continuous_press = keyboard_keys[iButt]; },
-                      [] { continuous_press = -1; });
-      } else {
-        ioButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
-                      [] { Joystick.setButton(iButt, 0); },
-                      [] {  });
-      }
-      #else
-      ioButtons[iButt].poll([] {  debugf(iButt);  },
-                      [] { debugf(iButt); },
-                      [] {  });
-      #endif
-    }
-  
-    // Loop through buttons connected to the shift registers
     shiftin.capture();
-    for (iButt = 0; iButt < nb_shiftButtons-1; iButt++) {
+    for (iButt = 0; iButt < (nb_buttons-nb_configButtons); iButt++) {
       #ifndef DEBUG_MAIN
-      // TODO: DO NOT SET STATE FOR PLAYER BUTTON
-      if (as_keyboard) {
-        shiftButtons[iButt].poll([] { Keyboard.write(keyboard_keys[iButt]);  },
-                      [] { },
-                      [] { continuous_press = keyboard_keys[iButt]; },
-                      [] { continuous_press = -1; });
-      } else {
-        shiftButtons[iButt].poll([] { Joystick.setButton(iButt, 1);  },
-                        [] { Joystick.setButton(iButt, 0); },
-                        [] {  });
-      }
+      
+      buttons[iButt].poll([] { Keyjoy.press(iButt);  },
+                      [] { Keyjoy.release(iButt); },
+                      0,
+                      [] { Keyjoy.release(iButt); });
       
       #else
-      shiftButtons[iButt].poll([] {  debugf(iButt);  },
-                      [] { debugf(iButt); },
+      buttons[iButt].poll([] {  debugf("Idx: " + String(iButt) + " Pin: " +  String(buttons[iButt].getPin()));  },
+                      [] { debugf((char)button_keys[iButt].ascii); },
                       [] {  });
       #endif
     }
+
+
     // Last button in the index is a special button, not a HID button
-    shiftButtons[nb_shiftButtons-1].poll([] {  },
+    buttons[nb_buttons-1].poll([] { debugf("CONF: " + String(iButt) + " Pin: " +  String(buttons[iButt].getPin()));  },
                     [] { color_idx++; if(color_idx > max_col_idx) {color_idx = 0;} },
-                    [] { as_keyboard = !as_keyboard;
-                          continuous_press = -1;
-                          comm_begin(); 
-                          debugf("Begin as " + String(as_keyboard)); });
+                    [] {
+                      digitalWrite(PIN_LED_B, HIGH);
+                      Keyjoy.begin();
+                      digitalWrite(PIN_LED_B, LOW);
+                    });
+                          
 
 
     last_poll += millisec_between_polls;
 
     #ifndef DEBUG_MAIN
-    Joystick.sendState(); // Update USB state
+    Keyjoy.update();
     #endif
   }
 
